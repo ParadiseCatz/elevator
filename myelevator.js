@@ -58,12 +58,13 @@ Elevator.prototype.decide = function() {
         elevator.get_destination_floor();
         elevator.get_position();
     }
-    
-    if(person) {
-        person.get_floor();
-        return this.commit_decision(person.get_destination_floor());
+
+    var people_and_requests = [];
+
+    for (var i = people.length - 1; i >= 0; i--) {
+        people_and_requests.push(people[i].get_destination_floor());
     }
-    
+
     for(var i = 0;i < requests.length;i++) {
         var handled = false;
         for(var j = 0;j < elevators.length;j++) {
@@ -73,9 +74,65 @@ Elevator.prototype.decide = function() {
             }
         }
         if(!handled) {
-            return this.commit_decision(requests[i]);
+            people_and_requests.push(requests[i]);
         }
     }
+    if (people_and_requests.length == 0) {
+        return this.commit_decision(Math.floor(num_floors / 2));
+    }
+    people_and_requests.sort();
+    
+    var current_floor = this.get_position() / this.get_height() + 1;
+    var destination;
+    if (this.moving_direction == undefined) {
+        var destination_up = get_lowest_person_or_request_higher_than_current_floor(people_and_requests, current_floor);
+        var destination_down =get_highest_person_or_request_lower_than_current_floor(people_and_requests, current_floor);
+        if (destination_up == undefined)
+            destination = destination_down;
+        if (destination_down == undefined)
+            destination = destination_up;
+        if (destination_down != undefined && destination_up != undefined) {
+            destination = current_floor - destination_down < destination_up - current_floor ? destination_down : destination_up;
+        }
+        return this.commit_decision(destination);
+    }
+    if (this.moving_direction == "UP") {
+        destination = get_lowest_person_or_request_higher_than_current_floor(people_and_requests, current_floor);
+        if (destination == undefined) {
+            this.moving_direction = "DOWN";
+            destination = get_highest_person_or_request_lower_than_current_floor(people_and_requests, current_floor);
+        }
+        return this.commit_decision(destination);
+    }
+    if (this.moving_direction == "DOWN") {
+        destination = get_highest_person_or_request_lower_than_current_floor(people_and_requests, current_floor);
+        if (destination == undefined) {
+            this.moving_direction = "UP";
+            destination = get_lowest_person_or_request_higher_than_current_floor(people_and_requests, current_floor);
+        }
+        return this.commit_decision(destination);
+    }
+
+    this.moving_direction = undefined;
+    
 
     return this.commit_decision(Math.floor(num_floors / 2));
 };
+
+function get_lowest_person_or_request_higher_than_current_floor(people_and_requests, current_floor) {
+    for (var i = 0; i < people_and_requests.length; ++i) {
+        if (people_and_requests[i] > current_floor) {
+            return people_and_requests[i];
+        }
+    }
+    return undefined;
+}
+
+function get_highest_person_or_request_lower_than_current_floor(people_and_requests, current_floor) {
+    for (var i = people_and_requests.length - 1; i >= 0; i--) {
+        if (people_and_requests[i] < current_floor) {
+            return people_and_requests[i];
+        }
+    }
+    return undefined;
+}
